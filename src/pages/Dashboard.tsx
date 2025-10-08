@@ -1,174 +1,148 @@
-// pages/Dashboard.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Spinner } from "@heroui/react";
 import { Dashboard as DashboardComponent } from '../components/Dashboard';
 import { ProductForm } from '../components/ProductForm';
 import { StockMovementForm } from '../components/StockMovementForm';
 import { DashboardStats, StockAlert, StockMovement, Product } from '../types';
+import { getProducts, getMovements, createProduct, createMovement } from '../services/api';
 
-// Mock data - substitua pelos dados reais da sua API
-const mockStats: DashboardStats = {
-  totalProducts: 156,
-  lowStockProducts: 8,
-  outOfStockProducts: 3,
-  totalMovementsToday: 24,
-  totalMovementsThisMonth: 387,
+const initialFormState = {
+  productId: '',
+  type: 'IN' as 'IN' | 'OUT' | 'DEFEITO',
+  quantity: '',
+  reason: '',
+  customReason: '',
+  notes: '',
 };
 
-const mockAlerts: StockAlert[] = [
-  {
-    id: '1',
-    productId: '1',
-    productName: 'Camiseta Básica Preta',
-    productSku: 'CAM-001',
-    currentStock: 2,
-    minimumStock: 10,
-    alertType: 'LOW_STOCK',
-    createdAt: new Date(),
-  },
-  {
-    id: '2',
-    productId: '2',
-    productName: 'Calça Jeans Skinny',
-    productSku: 'CAL-002',
-    currentStock: 0,
-    minimumStock: 5,
-    alertType: 'OUT_OF_STOCK',
-    createdAt: new Date(),
-  },
-  {
-    id: '3',
-    productId: '3',
-    productName: 'Tênis Casual Branco',
-    productSku: 'TEN-003',
-    currentStock: 3,
-    minimumStock: 8,
-    alertType: 'LOW_STOCK',
-    createdAt: new Date(),
-  },
-];
-
-const mockRecentMovements: StockMovement[] = [
-  {
-    id: '1',
-    productId: '1',
-    productName: 'Camiseta Básica Preta',
-    productSku: 'CAM-001',
-    type: 'OUT',
-    quantity: 3,
-    reason: 'Venda',
-    responsibleUser: 'João Silva',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 min atrás
-  },
-  {
-    id: '2',
-    productId: '2',
-    productName: 'Calça Jeans Skinny',
-    productSku: 'CAL-002',
-    type: 'IN',
-    quantity: 15,
-    reason: 'Compra de mercadoria',
-    responsibleUser: 'Maria Santos',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 horas atrás
-  },
-  {
-    id: '3',
-    productId: '3',
-    productName: 'Tênis Casual Branco',
-    productSku: 'TEN-003',
-    type: 'OUT',
-    quantity: 1,
-    reason: 'Amostra grátis',
-    responsibleUser: 'Pedro Costa',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 horas atrás
-  },
-];
-
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    sku: 'CAM-001',
-    name: 'Camiseta Básica Preta',
-    price: 29.90,
-    currentStock: 2,
-    minimumStock: 10,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    sku: 'CAL-002',
-    name: 'Calça Jeans Skinny',
-    price: 89.90,
-    currentStock: 15,
-    minimumStock: 5,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    sku: 'TEN-003',
-    name: 'Tênis Casual Branco',
-    price: 159.90,
-    currentStock: 3,
-    minimumStock: 8,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
-
 export const Dashboard: React.FC = () => {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [alerts, setAlerts] = useState<StockAlert[]>([]);
+  const [recentMovements, setRecentMovements] = useState<StockMovement[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState(initialFormState);
 
-  const handleAddProduct = () => {
-    setIsProductFormOpen(true);
-  };
+  const handleInputChange = useCallback((field: string, value: any) => {
+    setFormData(prev => {
+        const newState = { ...prev, [field]: value };
+        if (field === 'type') {
+            newState.reason = '';
+            newState.customReason = '';
+        }
+        return newState;
+    });
+  }, []);
 
-  const handleRecordMovement = () => {
-    setIsMovementFormOpen(true);
-  };
+  const fetchData = useCallback(async () => {
+    try {
+      const [productsData, movementsData] = await Promise.all([ getProducts(), getMovements() ]);
+      const sortedMovements = movementsData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setProducts(productsData);
+      setRecentMovements(sortedMovements.slice(0, 5));
+      const totalProducts = productsData.length;
+      const lowStockProducts = productsData.filter(p => p.currentStock > 0 && p.currentStock <= p.minimumStock).length;
+      const outOfStockProducts = productsData.filter(p => p.currentStock === 0).length;
+      const totalMovementsToday = movementsData.filter(m => new Date(m.timestamp).toDateString() === new Date().toDateString()).length;
+      const valorTotalMercadoriasEstoque = productsData.reduce((total, p) => total + (p.price * p.currentStock), 0);
+      setStats({ totalProducts, lowStockProducts, outOfStockProducts, totalMovementsToday, valorTotalMercadoriasEstoque });
+      const stockAlerts = productsData.filter(p => p.currentStock === 0 || p.currentStock <= p.minimumStock).map((p): StockAlert => ({ id: p.id, productId: p.id, productName: p.name, productSku: p.sku, currentStock: p.currentStock, minimumStock: p.minimumStock, alertType: p.currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK', createdAt: new Date() }));
+      setAlerts(stockAlerts);
+    } catch (error) {
+      console.error("Erro ao carregar dados do dashboard:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const handleViewProduct = (productId: string) => {
-    console.log('Visualizar produto:', productId);
-    // Implementar navegação para página de detalhes do produto
-    // ou abrir modal de detalhes
-  };
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  const handleProductSubmit = (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
-    console.log('Novo produto:', productData);
-    // Implementar criação do produto via API
-    // Atualizar estado/cache após criação
-  };
+  const openProductForm = useCallback(() => setIsProductFormOpen(true), []);
+  const closeProductForm = useCallback(() => setIsProductFormOpen(false), []);
+  const openMovementForm = useCallback(() => setIsMovementFormOpen(true), []);
+  const closeMovementForm = useCallback(() => {
+    setIsMovementFormOpen(false);
+    setFormData(initialFormState);
+  }, []);
 
-  const handleMovementSubmit = (movementData: Omit<StockMovement, 'id' | 'timestamp'>) => {
-    console.log('Nova movimentação:', movementData);
-    // Implementar registro de movimentação via API
-    // Atualizar estado/cache após registro
-  };
+  const handleProductSubmit = useCallback(async (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<boolean> => {
+    try {
+      await createProduct(productData);
+      await fetchData();
+      return true;
+    } catch(error) {
+      console.error("Falha ao criar produto:", error);
+      return false;
+    }
+  }, [fetchData]);
+
+  const handleMovementSubmit = useCallback(async () => {
+    setIsSubmitting(true);
+    try {
+        const product = products.find(p => p.id.toString() === formData.productId);
+        if (!product) throw new Error("Produto não encontrado");
+        const getBackendType = () => {
+            if (formData.type === 'IN') return 'ENTRADA';
+            if (formData.type === 'OUT') return 'SAIDA';
+            return 'DEFEITO';
+        };
+        const payload = {
+            product: { id: product.id },
+            type: getBackendType(),
+            quantity: parseInt(formData.quantity),
+            reason: formData.reason === 'Outros' ? formData.customReason : formData.reason,
+            responsibleUser: "Carlos Daniel",
+            notes: formData.notes,
+        };
+        await createMovement(payload);
+        await fetchData();
+        closeMovementForm();
+    } catch (error) {
+        console.error("Falha ao registrar movimentação:", error);
+    } finally {
+        setIsSubmitting(false);
+    }
+  }, [formData, products, fetchData, closeMovementForm]);
+  
+  if (isLoading || !stats) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+          <Spinner label="Carregando Dashboard..." color="primary" labelColor="primary" />
+      </div>
+    );
+  }
 
   return (
     <>
       <DashboardComponent
-        stats={mockStats}
-        alerts={mockAlerts}
-        recentMovements={mockRecentMovements}
-        onAddProduct={handleAddProduct}
-        onViewProduct={handleViewProduct}
-        onRecordMovement={handleRecordMovement}
+        stats={stats}
+        alerts={alerts}
+        recentMovements={recentMovements}
+        onAddProduct={openProductForm}
+        onViewProduct={(id) => console.log('View product', id)}
+        onRecordMovement={openMovementForm}
       />
-
       <ProductForm
         isOpen={isProductFormOpen}
-        onClose={() => setIsProductFormOpen(false)}
+        onClose={closeProductForm}
         onSubmit={handleProductSubmit}
+        isEditing={false}
       />
-
       <StockMovementForm
         isOpen={isMovementFormOpen}
-        onClose={() => setIsMovementFormOpen(false)}
+        onClose={closeMovementForm}
         onSubmit={handleMovementSubmit}
-        products={mockProducts}
-        currentUser="Usuário Atual" // Pegar do contexto de auth
+        products={products}
+        formData={formData}
+        handleInputChange={handleInputChange}
+        isSubmitting={isSubmitting}
+        currentUser="Carlos Daniel"
       />
     </>
   );

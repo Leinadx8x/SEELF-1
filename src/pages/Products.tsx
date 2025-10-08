@@ -1,5 +1,4 @@
-// pages/Products.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; 
 import {
     Card,
     CardBody,
@@ -22,9 +21,7 @@ import {
     DropdownMenu,
     DropdownItem,
     Progress,
-    Avatar,
     Image,
-    Badge,
 } from '@heroui/react';
 import {
     PlusIcon,
@@ -34,84 +31,31 @@ import {
     MoreVerticalIcon,
     EditIcon,
     Trash2Icon,
-    PackageIcon,
 } from 'lucide-react';
 import { ProductForm } from '../components/ProductForm';
 import { Product } from '../types';
-
-// Mock data - substituir pelos dados reais da API
-const mockProducts: Product[] = [
-    {
-        id: '1',
-        sku: 'CAM-001',
-        name: 'Camiseta Básica Preta',
-        description: 'Camiseta de algodão com corte clássico.',
-        price: 49.90,
-        imageUrl: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=300',
-        category: 'Roupas',
-        currentStock: 22,
-        minimumStock: 10,
-        createdAt: new Date('2025-08-01T10:00:00Z'),
-        updatedAt: new Date('2025-09-10T15:30:00Z'),
-    },
-    {
-        id: '2',
-        sku: 'CAL-002',
-        name: 'Calça Jeans Skinny',
-        description: 'Calça jeans com elastano para maior conforto.',
-        price: 129.90,
-        imageUrl: 'https://images.unsplash.com/photo-1602293589922-2542a04e3b39?q=80&w=300',
-        category: 'Roupas',
-        currentStock: 15,
-        minimumStock: 5,
-        createdAt: new Date('2025-08-02T11:00:00Z'),
-        updatedAt: new Date('2025-09-12T11:00:00Z'),
-    },
-    {
-        id: '3',
-        sku: 'TEN-003',
-        name: 'Tênis Casual Branco',
-        description: 'Tênis de couro sintético, ideal para o dia a dia.',
-        price: 199.90,
-        imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=300',
-        category: 'Calçados',
-        currentStock: 3,
-        minimumStock: 8,
-        createdAt: new Date('2025-08-05T14:20:00Z'),
-        updatedAt: new Date('2025-09-15T09:00:00Z'),
-    },
-    {
-        id: '4',
-        sku: 'BLU-004',
-        name: 'Blusa Moletom Cinza',
-        description: 'Blusa de moletom com capuz e bolso canguru.',
-        price: 159.90,
-        imageUrl: 'https://images.unsplash.com/photo-1620799140408-edc6d5f9650d?q=80&w=300',
-        category: 'Roupas',
-        currentStock: 0,
-        minimumStock: 6,
-        createdAt: new Date('2025-08-10T09:00:00Z'),
-        updatedAt: new Date('2025-09-14T18:00:00Z'),
-    },
-    {
-        id: '5',
-        sku: 'BOL-005',
-        name: 'Bolsa de Couro Preta',
-        description: 'Bolsa de ombro com alça ajustável.',
-        price: 249.90,
-        imageUrl: 'https://images.unsplash.com/photo-1590874102422-9599585b318c?q=80&w=300',
-        category: 'Acessórios',
-        currentStock: 12,
-        minimumStock: 5,
-        createdAt: new Date('2025-08-15T16:00:00Z'),
-        updatedAt: new Date('2025-09-11T12:00:00Z'),
-    },
-];
+import { getProducts, createProduct } from '../services/api'; 
 
 export const Products: React.FC = () => {
-    const [products, setProducts] = useState<Product[]>(mockProducts);
+    
+    const [products, setProducts] = useState<Product[]>([]);
     const [isProductFormOpen, setIsProductFormOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+
+    
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const data = await getProducts();
+                setProducts(data);
+            } catch (error) {
+                console.error("Falha ao buscar produtos:", error);
+            
+            }
+        };
+
+        fetchProducts();
+    }, []); 
 
     const handleAddProduct = () => {
         setEditingProduct(undefined);
@@ -123,19 +67,18 @@ export const Products: React.FC = () => {
         setIsProductFormOpen(true);
     };
     
-    const handleProductSubmit = (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const handleProductSubmit = async (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
         if(editingProduct){
-             // Lógica de Edição
-            setProducts(products.map(p => p.id === editingProduct.id ? { ...editingProduct, ...productData } : p));
+             
+            console.log("Editando produto...", productData);
         } else {
-             // Lógica de Adição
-            const newProduct: Product = {
-                ...productData,
-                id: (products.length + 1).toString(),
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
-            setProducts([newProduct, ...products]);
+             
+             try {
+                const newProduct = await createProduct(productData);
+                setProducts(prevProducts => [newProduct, ...prevProducts]);
+             } catch(error) {
+                console.error("Falha ao criar produto:", error);
+             }
         }
     };
     
@@ -147,7 +90,8 @@ export const Products: React.FC = () => {
     
     return (
         <div className="space-y-6">
-            {/* Header */}
+            {}
+            {}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-foreground">Produtos</h1>
@@ -164,7 +108,7 @@ export const Products: React.FC = () => {
                     </Button>
                 </div>
             </div>
-            {/* Filtros */}
+            {}
             <Card>
                 <CardBody>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -189,7 +133,7 @@ export const Products: React.FC = () => {
                 </CardBody>
             </Card>
 
-            {/* Tabela de Produtos */}
+            {}
             <Card>
                 <CardBody className="p-0">
                     <Table aria-label="Tabela de produtos">
@@ -201,7 +145,7 @@ export const Products: React.FC = () => {
                             <TableColumn>STATUS</TableColumn>
                             <TableColumn width={50}>AÇÕES</TableColumn>
                         </TableHeader>
-                        <TableBody items={products}>
+                        <TableBody items={products} emptyContent={"Nenhum produto encontrado."}>
                             {(item) => {
                                 const status = getStockStatus(item);
                                 return (
@@ -255,12 +199,12 @@ export const Products: React.FC = () => {
                 </CardBody>
             </Card>
 
-            {/* Paginação */}
+            {}
             <div className="flex justify-center">
                 <Pagination total={1} page={1} />
             </div>
 
-            {/* Modal de Formulário */}
+            {}
             <ProductForm
                 isOpen={isProductFormOpen}
                 onClose={() => setIsProductFormOpen(false)}

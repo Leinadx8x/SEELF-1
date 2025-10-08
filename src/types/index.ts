@@ -1,3 +1,5 @@
+
+
 export interface Product {
   id: string;
   sku: string;
@@ -10,15 +12,12 @@ export interface Product {
   minimumStock: number;
   createdAt: Date;
   updatedAt: Date;
-  isFromAPI?: boolean;
 }
 
 export interface StockMovement {
   id: string;
-  productId: string;
-  productName: string;
-  productSku: string;
-  type: 'IN' | 'OUT';
+  product: Product; 
+  type: 'ENTRADA' | 'SAIDA' | 'DEFEITO' | 'TRANSFERENCIA';
   quantity: number;
   reason: string;
   responsibleUser: string;
@@ -45,19 +44,10 @@ export interface StockAlert {
   createdAt: Date;
 }
 
-export interface APIIntegration {
-  id: string;
-  name: string;
-  endpoint: string;
-  isActive: boolean;
-  lastSync?: Date;
-  status: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
-}
-
 export interface DashboardStats {
   totalProducts: number;
   lowStockProducts: number;
   outOfStockProducts: number;
   totalMovementsToday: number;
-  totalMovementsThisMonth: number;
+  valorTotalMercadoriasEstoque: number;
 }

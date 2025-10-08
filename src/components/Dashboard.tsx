@@ -1,4 +1,4 @@
-// components/Dashboard.tsx
+// src/components/Dashboard.tsx
 import React from 'react';
 import {
   Card,
@@ -19,7 +19,8 @@ import {
   TrendingDownIcon, 
   AlertTriangleIcon, 
   PackageIcon,
-  PlusIcon 
+  PlusIcon,
+  DollarSignIcon // Novo ícone
 } from 'lucide-react';
 import { DashboardStats, StockAlert, StockMovement } from '../types';
 
@@ -47,7 +48,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(new Date(date));
   };
 
   return (
@@ -81,7 +82,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Cards de Estatísticas */}
+      {/* Cards de Estatísticas Atualizados */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-none bg-gradient-to-br from-violet-500 to-purple-500">
           <CardBody className="text-white p-4">
@@ -118,14 +119,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </CardBody>
         </Card>
-
-        <Card className="border-none bg-gradient-to-br from-green-400 to-blue-500">
+        
+        <Card className="border-none bg-gradient-to-br from-blue-500 to-cyan-500">
           <CardBody className="text-white p-4">
             <div className="flex items-center gap-3">
-              <TrendingUpIcon size={24} />
+              <DollarSignIcon size={24} />
               <div>
-                <p className="text-sm opacity-80">Movimentos Hoje</p>
-                <p className="text-2xl font-bold">{stats.totalMovementsToday}</p>
+                <p className="text-sm opacity-80">Valor em Estoque</p>
+                <p className="text-2xl font-bold">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.valorTotalMercadoriasEstoque || 0)}
+                </p>
               </div>
             </div>
           </CardBody>
@@ -209,8 +212,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <TableColumn>QTD</TableColumn>
                   <TableColumn>DATA</TableColumn>
                 </TableHeader>
-                <TableBody>
-                  {recentMovements.slice(0, 5).map((movement) => (
+                <TableBody items={recentMovements}>
+                  {(movement) => (
                     <TableRow key={movement.id}>
                       <TableCell>
                         <div>
@@ -220,21 +223,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       </TableCell>
                       <TableCell>
                         <Chip
-                          color={movement.type === 'IN' ? 'success' : 'danger'}
+                          color={movement.type === 'IN' || movement.type === 'ENTRADA' ? 'success' : 'danger'}
                           size="sm"
                           variant="flat"
                         >
-                          {movement.type === 'IN' ? 'Entrada' : 'Saída'}
+                          {movement.type === 'IN' || movement.type === 'ENTRADA' ? 'Entrada' : 'Saída'}
                         </Chip>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {movement.type === 'IN' ? '+' : '-'}{movement.quantity}
+                        {movement.type === 'IN' || movement.type === 'ENTRADA' ? '+' : '-'}{movement.quantity}
                       </TableCell>
                       <TableCell className="text-xs">
                         {formatDate(movement.timestamp)}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             )}
