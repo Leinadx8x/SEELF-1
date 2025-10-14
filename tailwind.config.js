@@ -9,9 +9,9 @@ export default {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: "class",
   theme: {
     extend: {},
   },
-  darkMode: "class",
   plugins: [heroui()],
 }

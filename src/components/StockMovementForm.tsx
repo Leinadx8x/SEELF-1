@@ -1,5 +1,5 @@
 // src/components/StockMovementForm.tsx
-import React from 'react';
+import React, { useRef, useState } from 'react'; // 1. Importar o useState
 import {
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input,
   Textarea, Select, SelectItem, Autocomplete, AutocompleteItem, Divider
@@ -10,9 +10,6 @@ import { Product } from '../types';
 export interface StockMovementFormProps {
   isOpen: boolean;
   onClose: () => void;
-  // ==========================================================
-  // FIX 1: Corrigindo o erro de TypeScript
-  // ==========================================================
   onSubmit: () => void;
   products: Product[];
   formData: any;
@@ -30,17 +27,17 @@ const movementReasons = {
 export const StockMovementForm: React.FC<StockMovementFormProps> = ({
   isOpen, onClose, onSubmit, products, formData, handleInputChange, isSubmitting
 }) => {
+  const autocompleteRef = useRef<HTMLInputElement>(null);
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSubmit();
   };
 
   if (!isOpen) return null;
-
   const selectedProduct = products.find(p => p.id.toString() === formData.productId);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside">
+    <Modal isOpen={isOpen} isDismissable={false} onClose={onClose} size="lg" scrollBehavior="inside">
       <ModalContent>
         <form onSubmit={handleSubmit}>
           <ModalHeader>Registrar Nova Movimentação</ModalHeader>
@@ -51,18 +48,29 @@ export const StockMovementForm: React.FC<StockMovementFormProps> = ({
                   label="Buscar produto"
                   placeholder="Digite o nome ou SKU"
                   selectedKey={formData.productId}
-                  onSelectionChange={(key) => handleInputChange('productId', key)}
-                  onClick={(e) => e.stopPropagation()}
                   isRequired
+                  ref={autocompleteRef}
+                  onSelectionChange={(key) => {
+                    handleInputChange('productId', key);
+                    if (autocompleteRef.current) {
+                      autocompleteRef.current.blur();
+                    }
+                  }}
                 >
-                  {products.map((product) => (
-                    <AutocompleteItem key={product.id} textValue={product.name}>
-                      <div>
-                        <span className="font-medium">{product.name}</span>
-                        <span className="text-xs text-default-500"> | Estoque: {product.currentStock}</span>
-                      </div>
+                  {products.length > 0 ? (
+                    products.map((product) => (
+                      <AutocompleteItem key={product.id} textValue={product.name}>
+                        <div>
+                          <span className="font-medium">{product.name}</span>
+                          <span className="text-xs text-default-500"> | Estoque: {product.currentStock}</span>
+                        </div>
+                      </AutocompleteItem>
+                    ))
+                  ) : (
+                    <AutocompleteItem key="not-found" isDisabled textValue="Nenhum produto encontrado">
+                      Nenhum produto encontrado
                     </AutocompleteItem>
-                  ))}
+                  )}
                 </Autocomplete>
               </div>
               <Divider />

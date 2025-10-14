@@ -43,6 +43,7 @@ import {
     KeyRoundIcon,
     PaletteIcon,
 } from 'lucide-react';
+import { AnimatedThemeToggler } from '@/components/themeToggle';
 
 // Mock Data - Substituir pela API
 const mockUsers = [
@@ -339,7 +340,7 @@ export const Settings: React.FC = () => {
                                         </p>
                                         <p className="text-sm text-default-500">Mudar o tema da interface.</p>
                                     </div>
-                                    <Switch />
+                                    <AnimatedThemeToggler />
                                 </div>
                                 
                                 <Button color="primary" className="w-full">Salvar Preferências</Button>
