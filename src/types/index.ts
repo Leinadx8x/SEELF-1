@@ -51,3 +51,13 @@ export interface DashboardStats {
   totalMovementsToday: number;
   valorTotalMercadoriasEstoque: number;
 }
+
+export interface Task {
+  id: string;
+  title: string; // O texto da tarefa
+  description?: string; // Observações
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'completed';
+  createdAt: Date;
+  completedAt?: Date;
+}

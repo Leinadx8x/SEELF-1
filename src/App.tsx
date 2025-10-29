@@ -12,6 +12,7 @@ import { Settings } from './pages/Settings';
 import { Profile } from './pages/Profile';
 import { Notifications } from './pages/Notifications';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { Tasks } from './pages/Tasks';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
                 <Route path="/configuracoes" element={<Settings />} />
                 <Route path="/perfil" element={<Profile />} />
                 <Route path="/notificacoes" element={<Notifications />} />
+                <Route path="/tarefas" element={<Tasks />} />
                 
                 {/* Rota padrão - redireciona para dashboard */}
                 <Route path="*" element={<Navigate to="/" replace />} />

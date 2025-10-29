@@ -27,6 +27,7 @@ import {
   LogOutIcon,
   UserIcon,
   DatabaseIcon,
+  ListCheckIcon,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -79,6 +80,12 @@ const menuItems = [
     icon: SettingsIcon,
     route: '/configuracoes',
     adminOnly: true,
+  },
+  {
+    key: 'tasks',
+    label: 'Tarefas',
+    icon: ListCheckIcon, // Usar o ícone importado
+    route: '/tarefas',
   },
 ];
 
