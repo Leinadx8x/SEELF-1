@@ -2,11 +2,12 @@
 import React, { useState, useCallback } from 'react';
 import {
     Button, Input, Card, CardHeader, CardBody, Divider,
-    Checkbox, Select, SelectItem, Textarea, Chip, Modal,
+    Checkbox, /* Select, SelectItem, */ Textarea, Chip, Modal, // Remove Select, SelectItem if not used elsewhere
     ModalContent, ModalHeader, ModalBody, ModalFooter, Tabs, Tab, Badge
 } from '@heroui/react';
 import { PlusIcon, EditIcon, Trash2Icon, FlagIcon } from 'lucide-react';
-import { Task } from '../types'; // Importar o tipo Task
+import { Task } from '../types';
+import { CustomSelect } from '../components/CustomSelect'; // <--- Importar o CustomSelect
 
 // Mock data inicial (substituir por API call ou estado persistente)
 const initialTasks: Task[] = [
@@ -15,10 +16,18 @@ const initialTasks: Task[] = [
     { id: '3', title: 'Receber mercadoria do fornecedor X', priority: 'high', status: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48), completedAt: new Date(Date.now() - 1000 * 60 * 60 * 3) },
 ];
 
+// --- Definir as opções para o CustomSelect ---
+const priorityOptions = [
+    { value: 'low', label: 'Baixa' },
+    { value: 'medium', label: 'Média' },
+    { value: 'high', label: 'Alta' },
+];
+// --- Fim da definição ---
+
 export const Tasks: React.FC = () => {
     const [tasks, setTasks] = useState<Task[]>(initialTasks);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [currentTask, setCurrentTask] = useState<Partial<Task>>({}); // Para adicionar/editar
+    const [currentTask, setCurrentTask] = useState<Partial<Task>>({});
     const [isEditing, setIsEditing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('pending');
 
@@ -27,7 +36,7 @@ export const Tasks: React.FC = () => {
             setCurrentTask(task);
             setIsEditing(true);
         } else {
-            setCurrentTask({ priority: 'medium', status: 'pending' }); // Default values
+            setCurrentTask({ priority: 'medium', status: 'pending' });
             setIsEditing(false);
         }
         setIsModalOpen(true);
@@ -44,15 +53,13 @@ export const Tasks: React.FC = () => {
     };
 
     const handleSaveTask = () => {
-        if (!currentTask.title) return; // Validar título
+        if (!currentTask.title) return;
 
         if (isEditing && currentTask.id) {
-            // Lógica para editar tarefa existente
             setTasks(tasks.map(t => t.id === currentTask.id ? { ...t, ...currentTask } as Task : t));
         } else {
-            // Lógica para adicionar nova tarefa
             const newTask: Task = {
-                id: Date.now().toString(), // Gerar ID simples
+                id: Date.now().toString(),
                 title: currentTask.title,
                 description: currentTask.description,
                 priority: currentTask.priority || 'medium',
@@ -95,7 +102,7 @@ export const Tasks: React.FC = () => {
         if (filter === 'pending') return task.status === 'pending';
         if (filter === 'completed') return task.status === 'completed';
         return true;
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Ordenar por mais recentes
+    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const pendingCount = tasks.filter(t => t.status === 'pending').length;
 
@@ -200,19 +207,15 @@ export const Tasks: React.FC = () => {
                             value={currentTask.description || ''}
                             onValueChange={(value) => handleInputChange('description', value)}
                         />
-                        <Select
+                        {/* --- SUBSTITUIÇÃO DO SELECT PELO CUSTOMSELECT --- */}
+                        <CustomSelect
                             label="Prioridade"
-                            selectedKeys={new Set(currentTask.priority ? [currentTask.priority] : ['medium'])}
-                            onSelectionChange={(keys) => {
-                                const selected = Array.from(keys)[0] as 'low' | 'medium' | 'high';
-                                handleInputChange('priority', selected);
-                            }}
-                            startContent={<FlagIcon size={16} className="text-default-400" />}
-                        >
-                            <SelectItem key="low">Baixa</SelectItem>
-                            <SelectItem key="medium">Média</SelectItem>
-                            <SelectItem key="high">Alta</SelectItem>
-                        </Select>
+                            options={priorityOptions} // Usa as opções definidas
+                            value={currentTask.priority || 'medium'} // Pega o valor do estado
+                            onChange={(value) => handleInputChange('priority', value)} // Atualiza o estado
+                            placeholder="Escolha a prioridade"
+                        />
+                        {/* --- FIM DA SUBSTITUIÇÃO --- */}
 
                     </ModalBody>
                     <ModalFooter>

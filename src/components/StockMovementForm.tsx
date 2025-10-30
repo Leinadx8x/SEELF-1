@@ -1,11 +1,12 @@
 // src/components/StockMovementForm.tsx
-import React, { useRef, useState } from 'react'; // 1. Importar o useState
+import React, { useRef } from 'react'; // Removi useState, não era usado diretamente aqui
 import {
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input,
-  Textarea, Select, SelectItem, Autocomplete, AutocompleteItem, Divider
+  Textarea, Autocomplete, AutocompleteItem, Divider
 } from '@heroui/react';
 import { TrendingUpIcon, TrendingDownIcon, AlertTriangleIcon } from 'lucide-react';
 import { Product } from '../types';
+import { CustomSelect } from './CustomSelect'; // <--- VERIFIQUE O IMPORT
 
 export interface StockMovementFormProps {
   isOpen: boolean;
@@ -36,13 +37,38 @@ export const StockMovementForm: React.FC<StockMovementFormProps> = ({
   if (!isOpen) return null;
   const selectedProduct = products.find(p => p.id.toString() === formData.productId);
 
+  // Pega a lista de motivos baseada no tipo selecionado
+  const reasonsList = movementReasons[formData.type as keyof typeof movementReasons] || [];
+
+  // Transforma a lista para o formato do CustomSelect
+  const reasonOptions = reasonsList.map(reason => ({
+    value: reason,
+    label: reason,
+  }));
+
+  const handleTypeChange = (newType: 'IN' | 'OUT' | 'DEFEITO') => {
+    // Resetar o motivo se o tipo mudar
+    if (formData.type !== newType) {
+       handleInputChange('reason', null); // Usar null para CustomSelect
+       handleInputChange('customReason', '');
+    }
+    handleInputChange('type', newType);
+  };
+
+  const isSubmitDisabled =
+    !selectedProduct ||
+    !formData.quantity ||
+    !formData.reason || // Verifica se formData.reason tem um valor
+    (formData.reason === 'Outros' && !formData.customReason);
+
   return (
-    <Modal isOpen={isOpen} isDismissable={false} onClose={onClose} size="lg" scrollBehavior="inside">
+    <Modal isOpen={isOpen} isDismissable={false} onClose={onClose} size="lg" scrollBehavior="inside"> {/* Pode voltar para inside se quiser */}
       <ModalContent>
         <form onSubmit={handleSubmit}>
           <ModalHeader>Registrar Nova Movimentação</ModalHeader>
           <ModalBody className="space-y-4">
             <div className="space-y-4">
+              {/* Autocomplete (Mantido como estava) */}
               <div onMouseDown={(e) => e.stopPropagation()}>
                 <Autocomplete
                   label="Buscar produto"
@@ -75,15 +101,17 @@ export const StockMovementForm: React.FC<StockMovementFormProps> = ({
               </div>
               <Divider />
 
+              {/* Botões de Tipo (Mantidos como estavam) */}
               <div>
                 <h3 className="text-sm font-medium mb-2">Tipo de Movimentação</h3>
                 <div className="grid grid-cols-3 gap-2">
-                  <Button fullWidth color={formData.type === 'IN' ? 'success' : 'default'} onPress={() => handleInputChange('type', 'IN')} startContent={<TrendingUpIcon size={16} />}>Entrada</Button>
-                  <Button fullWidth color={formData.type === 'OUT' ? 'danger' : 'default'} onPress={() => handleInputChange('type', 'OUT')} startContent={<TrendingDownIcon size={16} />}>Saída</Button>
-                  <Button fullWidth color={formData.type === 'DEFEITO' ? 'warning' : 'default'} onPress={() => handleInputChange('type', 'DEFEITO')} startContent={<AlertTriangleIcon size={16} />}>Defeito</Button>
+                   <Button fullWidth color={formData.type === 'IN' ? 'success' : 'default'} onPress={() => handleTypeChange('IN')} startContent={<TrendingUpIcon size={16} />}>Entrada</Button>
+                   <Button fullWidth color={formData.type === 'OUT' ? 'danger' : 'default'} onPress={() => handleTypeChange('OUT')} startContent={<TrendingDownIcon size={16} />}>Saída</Button>
+                   <Button fullWidth color={formData.type === 'DEFEITO' ? 'warning' : 'default'} onPress={() => handleTypeChange('DEFEITO')} startContent={<AlertTriangleIcon size={16} />}>Defeito</Button>
                 </div>
               </div>
 
+              {/* Input Quantidade (Mantido como estava) */}
               <Input
                 label="Quantidade"
                 type="number"
@@ -93,27 +121,26 @@ export const StockMovementForm: React.FC<StockMovementFormProps> = ({
                 isRequired
               />
 
-              <Select
+              {/* CustomSelect para o Motivo */}
+              <CustomSelect
                 label="Motivo"
+                options={reasonOptions} // Usa as opções transformadas
+                value={formData.reason} // Usa o valor do formData
+                onChange={(value) => handleInputChange('reason', value)} // Chama handleInputChange
                 placeholder="Escolha um motivo"
-                selectedKeys={formData.reason ? [formData.reason] : []}
-                onSelectionChange={(keys) => handleInputChange('reason', Array.from(keys)[0])}
-              >
-                {(movementReasons[formData.type as keyof typeof movementReasons] || []).map((reason) => (
-                  <SelectItem key={reason}>
-                    {reason}
-                  </SelectItem>
-                ))}
-              </Select>
+              />
 
+              {/* Input para "Outros" (Mantido como estava) */}
               {formData.reason === 'Outros' && (
                 <Input
                   label="Especifique o motivo"
                   value={formData.customReason}
                   onValueChange={(value) => handleInputChange('customReason', value)}
+                  isRequired
                 />
               )}
 
+              {/* Textarea Observações (Mantida como estava) */}
               <Textarea
                 label="Observações (opcional)"
                 value={formData.notes}
@@ -123,7 +150,9 @@ export const StockMovementForm: React.FC<StockMovementFormProps> = ({
           </ModalBody>
           <ModalFooter>
             <Button color="danger" variant="light" onPress={onClose}>Cancelar</Button>
-            <Button color="primary" type='submit' isLoading={isSubmitting} isDisabled={!selectedProduct && !formData.quantity && !formData.reason}>Registrar</Button>
+            <Button color="primary" type='submit' isLoading={isSubmitting} isDisabled={isSubmitDisabled}>
+              Registrar
+            </Button>
           </ModalFooter>
         </form>
       </ModalContent>
