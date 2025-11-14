@@ -10,7 +10,7 @@ import "@/styles/globals.css";
 const AppWrapper = () => {
   const navigate = useNavigate();
   return (
-    <HeroUIProvider navigate={navigate} useHref={useHref}> // Correct setup
+    <HeroUIProvider navigate={navigate} useHref={useHref}>
       <AuthProvider>
         <App />
       </AuthProvider>
