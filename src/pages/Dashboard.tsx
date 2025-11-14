@@ -41,16 +41,54 @@ export const Dashboard: React.FC = () => {
   const fetchData = useCallback(async () => {
     try {
       const [productsData, movementsData] = await Promise.all([ getProducts(), getMovements() ]);
-      const sortedMovements = movementsData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      // Chaves do mapa como string para evitar mismatch (number vs string)
+      const productMap = new Map<string, Product>(
+        productsData.map((p: Product) => [String(p.id), p])
+      );
+
+      // Enriquecer cada movimentação com nome/sku do produto
+      const movementsEnriched = movementsData.map((m: any) => {
+        const pid = m?.product?.id ?? m?.productId ?? m?.product_id;
+        const prod = pid != null ? productMap.get(String(pid)) : undefined;
+
+        return {
+          ...m,
+          productName: m?.product?.name ?? m?.productName ?? prod?.name ?? '—',
+          productSku: m?.product?.sku ?? m?.productSku ?? prod?.sku ?? '',
+        };
+      });
+
+      const sortedMovements = movementsEnriched.sort(
+        (a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
       setProducts(productsData);
       setRecentMovements(sortedMovements.slice(0, 5));
+
       const totalProducts = productsData.length;
       const lowStockProducts = productsData.filter(p => p.currentStock > 0 && p.currentStock <= p.minimumStock).length;
       const outOfStockProducts = productsData.filter(p => p.currentStock === 0).length;
-      const totalMovementsToday = movementsData.filter(m => new Date(m.timestamp).toDateString() === new Date().toDateString()).length;
+      const totalMovementsToday = movementsEnriched.filter(
+        (m: any) => new Date(m.timestamp).toDateString() === new Date().toDateString()
+      ).length;
       const valorTotalMercadoriasEstoque = productsData.reduce((total, p) => total + (p.price * p.currentStock), 0);
+
       setStats({ totalProducts, lowStockProducts, outOfStockProducts, totalMovementsToday, valorTotalMercadoriasEstoque });
-      const stockAlerts = productsData.filter(p => p.currentStock === 0 || p.currentStock <= p.minimumStock).map((p): StockAlert => ({ id: p.id, productId: p.id, productName: p.name, productSku: p.sku, currentStock: p.currentStock, minimumStock: p.minimumStock, alertType: p.currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK', createdAt: new Date() }));
+
+      const stockAlerts = productsData
+        .filter(p => p.currentStock === 0 || p.currentStock <= p.minimumStock)
+        .map((p): StockAlert => ({
+          id: p.id,
+          productId: p.id,
+          productName: p.name,
+          productSku: p.sku,
+          currentStock: p.currentStock,
+          minimumStock: p.minimumStock,
+          alertType: p.currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+          createdAt: new Date()
+        }));
+
       setAlerts(stockAlerts);
     } catch (error) {
       console.error("Erro ao carregar dados do dashboard:", error);
@@ -92,15 +130,51 @@ export const Dashboard: React.FC = () => {
             if (formData.type === 'OUT') return 'SAIDA';
             return 'DEFEITO';
         };
+        const qty = parseInt(formData.quantity);
         const payload = {
             product: { id: product.id },
             type: getBackendType(),
-            quantity: parseInt(formData.quantity),
+            quantity: qty,
             reason: formData.reason === 'Outros' ? formData.customReason : formData.reason,
             responsibleUser: "Carlos Daniel",
             notes: formData.notes,
         };
+
         await createMovement(payload);
+
+        // Recalcula otimisticamente o estoque local e os cards
+        const adjustedProducts = products.map(p => {
+          if (p.id !== product.id) return p;
+          const delta = formData.type === 'IN' ? qty : qty; // qty já vem positivo
+          const sign = formData.type === 'IN' ? +1 : -1;    // OUT/DEFEITO decrementa
+          const newStock = Math.max(0, p.currentStock + sign * delta);
+          return { ...p, currentStock: newStock };
+        });
+        setProducts(adjustedProducts);
+
+        // Recalcular stats e alertas a partir do estoque ajustado
+        const totalProducts = adjustedProducts.length;
+        const lowStockProducts = adjustedProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.minimumStock).length;
+        const outOfStockProducts = adjustedProducts.filter(p => p.currentStock === 0).length;
+        const valorTotalMercadoriasEstoque = adjustedProducts.reduce((total, p) => total + (p.price * p.currentStock), 0);
+
+        setStats({ totalProducts, lowStockProducts, outOfStockProducts, totalMovementsToday: stats?.totalMovementsToday ?? 0, valorTotalMercadoriasEstoque });
+
+        const stockAlerts = adjustedProducts
+          .filter(p => p.currentStock === 0 || p.currentStock <= p.minimumStock)
+          .map((p): StockAlert => ({
+            id: p.id,
+            productId: p.id,
+            productName: p.name,
+            productSku: p.sku,
+            currentStock: p.currentStock,
+            minimumStock: p.minimumStock,
+            alertType: p.currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+            createdAt: new Date()
+          }));
+        setAlerts(stockAlerts);
+
+        // Busca final para alinhar com o backend
         await fetchData();
         closeMovementForm();
     } catch (error) {
@@ -108,7 +182,7 @@ export const Dashboard: React.FC = () => {
     } finally {
         setIsSubmitting(false);
     }
-  }, [formData, products, fetchData, closeMovementForm]);
+  }, [formData, products, stats, fetchData, closeMovementForm]);
   
   if (isLoading || !stats) {
     return (

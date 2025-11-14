@@ -1,12 +1,12 @@
 // src/components/StockMovementForm.tsx
-import React, { useRef } from 'react'; // Removi useState, não era usado diretamente aqui
+import React, { useRef } from 'react'; 
 import {
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input,
   Textarea, Autocomplete, AutocompleteItem, Divider
 } from '@heroui/react';
 import { TrendingUpIcon, TrendingDownIcon, AlertTriangleIcon } from 'lucide-react';
 import { Product } from '../types';
-import { CustomSelect } from './CustomSelect'; // <--- VERIFIQUE O IMPORT
+import { CustomSelect } from './CustomSelect';
 
 export interface StockMovementFormProps {
   isOpen: boolean;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; 
+import React, { useState, useEffect, useMemo } from 'react'; 
 import {
     Card,
     CardBody,
@@ -37,12 +37,13 @@ import { Product } from '../types';
 import { getProducts, createProduct } from '../services/api'; 
 
 export const Products: React.FC = () => {
-    
     const [products, setProducts] = useState<Product[]>([]);
     const [isProductFormOpen, setIsProductFormOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
 
-    
+    // estado do filtro de status
+    const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+
     useEffect(() => {
         const fetchProducts = async () => {
             try {
@@ -82,12 +83,19 @@ export const Products: React.FC = () => {
         }
     };
     
+    // inclui uma chave de status para facilitar o filtro
     const getStockStatus = (product: Product) => {
-        if (product.currentStock <= 0) return { label: 'Esgotado', color: 'danger' as const, value: 0 };
-        if (product.currentStock <= product.minimumStock) return { label: 'Estoque Baixo', color: 'warning' as const, value: (product.currentStock / (product.minimumStock * 2)) * 100 };
-        return { label: 'Em Estoque', color: 'success' as const, value: (product.currentStock / (product.minimumStock * 2)) * 100 };
+        if (product.currentStock <= 0) return { key: 'out_of_stock' as const, label: 'Esgotado', color: 'danger' as const, value: 0 };
+        if (product.currentStock <= product.minimumStock) return { key: 'low_stock' as const, label: 'Estoque Baixo', color: 'warning' as const, value: (product.currentStock / (product.minimumStock * 2)) * 100 };
+        return { key: 'in_stock' as const, label: 'Em Estoque', color: 'success' as const, value: (product.currentStock / (product.minimumStock * 2)) * 100 };
     };
-    
+
+    // aplica o filtro por status
+    const filteredProducts = useMemo(() => {
+        if (statusFilter === 'all') return products;
+        return products.filter(p => getStockStatus(p).key === statusFilter);
+    }, [products, statusFilter]);
+
     return (
         <div className="space-y-6">
             {}
@@ -117,7 +125,14 @@ export const Products: React.FC = () => {
                             startContent={<SearchIcon size={16} />}
                             isClearable
                         />
-                        <Select label="Filtrar por Status">
+                        <Select
+                            label="Filtrar por Status"
+                            selectedKeys={new Set([statusFilter])}
+                            onSelectionChange={(keys) => {
+                                const key = Array.from(keys as Set<string>)[0] as typeof statusFilter;
+                                setStatusFilter((key ?? 'all') as any);
+                            }}
+                        >
                             <SelectItem key="all">Todos</SelectItem>
                             <SelectItem key="in_stock">Em Estoque</SelectItem>
                             <SelectItem key="low_stock">Estoque Baixo</SelectItem>
@@ -133,7 +148,6 @@ export const Products: React.FC = () => {
                 </CardBody>
             </Card>
 
-            {}
             <Card>
                 <CardBody className="p-0">
                     <Table aria-label="Tabela de produtos">
@@ -145,7 +159,7 @@ export const Products: React.FC = () => {
                             <TableColumn>STATUS</TableColumn>
                             <TableColumn width={50}>AÇÕES</TableColumn>
                         </TableHeader>
-                        <TableBody items={products} emptyContent={"Nenhum produto encontrado."}>
+                        <TableBody items={filteredProducts} emptyContent={"Nenhum produto encontrado."}>
                             {(item) => {
                                 const status = getStockStatus(item);
                                 return (
