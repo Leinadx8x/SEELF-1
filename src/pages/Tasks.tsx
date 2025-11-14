@@ -1,35 +1,45 @@
 // src/pages/Tasks.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Button, Input, Card, CardHeader, CardBody, Divider,
-    Checkbox, /* Select, SelectItem, */ Textarea, Chip, Modal, // Remove Select, SelectItem if not used elsewhere
-    ModalContent, ModalHeader, ModalBody, ModalFooter, Tabs, Tab, Badge
+    Checkbox, Textarea, Chip, Modal,
+    ModalContent, ModalHeader, ModalBody, ModalFooter, Tabs, Tab, Badge,
+    Spinner
 } from '@heroui/react';
-import { PlusIcon, EditIcon, Trash2Icon, FlagIcon } from 'lucide-react';
+import { PlusIcon, EditIcon, Trash2Icon } from 'lucide-react';
 import { Task } from '../types';
-import { CustomSelect } from '../components/CustomSelect'; // <--- Importar o CustomSelect
+import { CustomSelect } from '../components/CustomSelect';
+import { getTasks, createTask, updateTask, deleteTask } from '../services/api';
 
-// Mock data inicial (substituir por API call ou estado persistente)
-const initialTasks: Task[] = [
-    { id: '1', title: 'Fazer contagem semanal do setor A', priority: 'high', status: 'pending', createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), description: 'Verificar itens de alta rotatividade.' },
-    { id: '2', title: 'Organizar prateleiras B1 e B2', priority: 'medium', status: 'pending', createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24) },
-    { id: '3', title: 'Receber mercadoria do fornecedor X', priority: 'high', status: 'completed', createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48), completedAt: new Date(Date.now() - 1000 * 60 * 60 * 3) },
-];
-
-// --- Definir as opções para o CustomSelect ---
 const priorityOptions = [
     { value: 'low', label: 'Baixa' },
     { value: 'medium', label: 'Média' },
     { value: 'high', label: 'Alta' },
 ];
-// --- Fim da definição ---
 
 export const Tasks: React.FC = () => {
-    const [tasks, setTasks] = useState<Task[]>(initialTasks);
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentTask, setCurrentTask] = useState<Partial<Task>>({});
     const [isEditing, setIsEditing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('pending');
+
+    const fetchTasks = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const data = await getTasks();
+            setTasks(data);
+        } catch (error) {
+            console.error("Erro ao buscar tarefas:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchTasks();
+    }, [fetchTasks]);
 
     const openModal = (task?: Task) => {
         if (task) {
@@ -52,41 +62,51 @@ export const Tasks: React.FC = () => {
         setCurrentTask(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleSaveTask = () => {
+    const handleSaveTask = async () => {
         if (!currentTask.title) return;
 
-        if (isEditing && currentTask.id) {
-            setTasks(tasks.map(t => t.id === currentTask.id ? { ...t, ...currentTask } as Task : t));
-        } else {
-            const newTask: Task = {
-                id: Date.now().toString(),
-                title: currentTask.title,
-                description: currentTask.description,
-                priority: currentTask.priority || 'medium',
-                status: 'pending',
-                createdAt: new Date(),
-            };
-            setTasks([newTask, ...tasks]);
-        }
-        closeModal();
-    };
-
-    const toggleTaskStatus = (id: string) => {
-        setTasks(tasks.map(t => {
-            if (t.id === id) {
-                const newStatus = t.status === 'pending' ? 'completed' : 'pending';
-                return {
-                    ...t,
-                    status: newStatus,
-                    completedAt: newStatus === 'completed' ? new Date() : undefined,
-                };
+        try {
+            if (isEditing && currentTask.id) {
+                await updateTask(currentTask.id, currentTask);
+            } else {
+                await createTask({
+                    title: currentTask.title!,
+                    description: currentTask.description,
+                    priority: currentTask.priority || 'medium',
+                });
             }
-            return t;
-        }));
+            closeModal();
+            fetchTasks();
+        } catch (error) {
+            console.error("Erro ao salvar tarefa:", error);
+        }
     };
 
-    const deleteTask = (id: string) => {
-        setTasks(tasks.filter(t => t.id !== id));
+    const toggleTaskStatus = async (id: string) => {
+        const task = tasks.find(t => t.id === id);
+        if (!task) return;
+
+        const newStatus = task.status === 'pending' ? 'completed' : 'pending';
+        const updatedTask = {
+            ...task,
+            status: newStatus,
+        };
+        
+        try {
+            await updateTask(id, updatedTask);
+            fetchTasks();
+        } catch (error) {
+            console.error("Erro ao atualizar status da tarefa:", error);
+        }
+    };
+
+    const handleDeleteTask = async (id: string) => {
+        try {
+            await deleteTask(id);
+            fetchTasks();
+        } catch (error) {
+            console.error("Erro ao deletar tarefa:", error);
+        }
     };
 
     const getPriorityChip = (priority: 'low' | 'medium' | 'high') => {
@@ -108,7 +128,6 @@ export const Tasks: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-foreground">Mural de Tarefas</h1>
@@ -121,7 +140,6 @@ export const Tasks: React.FC = () => {
                 </Button>
             </div>
 
-            {/* Filtros e Lista */}
             <Card>
                 <CardHeader>
                     <Tabs
@@ -144,7 +162,11 @@ export const Tasks: React.FC = () => {
                 </CardHeader>
                 <Divider />
                 <CardBody>
-                    {filteredTasks.length > 0 ? (
+                    {isLoading ? (
+                        <div className="text-center py-10">
+                            <Spinner label="Carregando tarefas..." />
+                        </div>
+                    ) : filteredTasks.length > 0 ? (
                         <ul className="space-y-3">
                             {filteredTasks.map(task => (
                                 <li key={task.id} className={`flex items-start gap-3 p-3 rounded-lg border ${task.status === 'completed' ? 'border-default-200 bg-default-50 opacity-70' : 'border-divider bg-background'}`}>
@@ -173,7 +195,7 @@ export const Tasks: React.FC = () => {
                                         <Button isIconOnly size="sm" variant="light" onPress={() => openModal(task)}>
                                             <EditIcon size={16} />
                                         </Button>
-                                        <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => deleteTask(task.id)}>
+                                        <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDeleteTask(task.id)}>
                                             <Trash2Icon size={16} />
                                         </Button>
                                     </div>
@@ -188,7 +210,6 @@ export const Tasks: React.FC = () => {
                 </CardBody>
             </Card>
 
-            {/* Modal Adicionar/Editar Tarefa */}
             <Modal isOpen={isModalOpen} onClose={closeModal} size="lg" scrollBehavior="outside">
                 <ModalContent>
                     <ModalHeader>{isEditing ? 'Editar Tarefa' : 'Adicionar Nova Tarefa'}</ModalHeader>
@@ -207,16 +228,15 @@ export const Tasks: React.FC = () => {
                             value={currentTask.description || ''}
                             onValueChange={(value) => handleInputChange('description', value)}
                         />
-                        {/* --- SUBSTITUIÇÃO DO SELECT PELO CUSTOMSELECT --- */}
+                        
                         <CustomSelect
                             label="Prioridade"
-                            options={priorityOptions} // Usa as opções definidas
-                            value={currentTask.priority || 'medium'} // Pega o valor do estado
-                            onChange={(value) => handleInputChange('priority', value)} // Atualiza o estado
+                            options={priorityOptions} 
+                            value={currentTask.priority || 'medium'} 
+                            onChange={(value) => handleInputChange('priority', value)} 
                             placeholder="Escolha a prioridade"
                         />
-                        {/* --- FIM DA SUBSTITUIÇÃO --- */}
-
+                       
                     </ModalBody>
                     <ModalFooter>
                         <Button color="danger" variant="light" onPress={closeModal}>
