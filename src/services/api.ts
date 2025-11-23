@@ -1,144 +1,103 @@
 // src/services/api.ts
-import { Product, StockMovement, Task } from '../types';
+import { Product, StockMovement, Task, Achievement } from '../types';
 
 const API_URL = 'http://localhost:8080/api';
 
-// --- FUNÇÕES DE PRODUTO (JÁ EXISTIAM) ---
+// --- PRODUTOS ---
 export const getProducts = async (): Promise<Product[]> => {
   const response = await fetch(`${API_URL}/products`);
-  if (!response.ok) {
-    throw new Error('Erro ao buscar produtos do servidor.');
-  }
+  if (!response.ok) throw new Error('Erro ao buscar produtos.');
   const data = await response.json();
   return data.map((product: any) => ({
     ...product,
-    createdAt: new Date(product.createdAt || product.registrationDate),
-    updatedAt: new Date(product.updatedAt || product.ultimaAtualizacao),
-    price: parseFloat(product.price || product.precoVenda || 0),
-    currentStock: parseInt(product.currentStock || product.quantity || 0),
-    minimumStock: parseInt(product.minimumStock || 5),
+    createdAt: new Date(product.createdAt),
+    updatedAt: new Date(product.updatedAt),
+    price: parseFloat(product.price),
+    currentStock: parseInt(product.currentStock),
+    minimumStock: parseInt(product.minimumStock),
   }));
 };
 
-export const createProduct = async (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product> => {
+export const createProduct = async (productData: any): Promise<Product> => {
   const response = await fetch(`${API_URL}/products`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(productData),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Erro ao criar produto:", errorText);
-    throw new Error('Erro ao criar produto no servidor.');
-  }
+  if (!response.ok) throw new Error('Erro ao criar produto.');
   return response.json();
 };
 
-// --- FUNÇÕES DE MOVIMENTAÇÃO (JÁ EXISTIAM) ---
+// --- MOVIMENTAÇÕES ---
 export const getMovements = async (): Promise<StockMovement[]> => {
   const response = await fetch(`${API_URL}/movements`);
-  if (!response.ok) {
-    throw new Error('Erro ao buscar movimentações do servidor.');
-  }
+  if (!response.ok) throw new Error('Erro ao buscar movimentações.');
    const data = await response.json();
    return data.map((movement: any) => ({
      ...movement,
-     timestamp: new Date(movement.timestamp || movement.date || movement.dataHora),
+     timestamp: new Date(movement.timestamp),
    }));
 };
 
 export const createMovement = async (movementData: any): Promise<StockMovement> => {
   const response = await fetch(`${API_URL}/movements`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(movementData),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Erro ao criar movimentação:", errorText);
-    throw new Error('Erro ao criar movimentação no servidor.');
-  }
+  if (!response.ok) throw new Error('Erro ao criar movimentação.');
   return response.json();
 };
 
-
-// --- NOVAS FUNÇÕES DE TAREFAS ---
-
-// Helper para converter datas e tipos de Task
+// --- TAREFAS ---
 const parseTaskDates = (task: any): Task => ({
   ...task,
   id: task.id.toString(),
   createdAt: new Date(task.createdAt),
   completedAt: task.completedAt ? new Date(task.completedAt) : undefined,
-  // --- CORREÇÃO AQUI ---
-  // Precisamos dizer ao TypeScript que esses campos são dos tipos exatos
-  status: task.status as 'pending' | 'completed',
-  priority: task.priority as 'low' | 'medium' | 'high',
+  status: task.status,
+  priority: task.priority,
 });
 
-// GET /api/tasks
 export const getTasks = async (): Promise<Task[]> => {
   const response = await fetch(`${API_URL}/tasks`);
-  if (!response.ok) {
-    throw new Error('Erro ao buscar tarefas do servidor.');
-  }
+  if (!response.ok) throw new Error('Erro ao buscar tarefas.');
   const data = await response.json();
   return data.map(parseTaskDates);
 };
 
-// POST /api/tasks
-export const createTask = async (taskData: Omit<Task, 'id' | 'createdAt' | 'status'>): Promise<Task> => {
+export const createTask = async (taskData: any): Promise<Task> => {
   const response = await fetch(`${API_URL}/tasks`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(taskData),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Erro ao criar tarefa:", errorText);
-    throw new Error('Erro ao criar tarefa no servidor.');
-  }
+  if (!response.ok) throw new Error('Erro ao criar tarefa.');
   const data = await response.json();
   return parseTaskDates(data);
 };
 
-// PUT /api/tasks/{id}
 export const updateTask = async (id: string, taskData: Partial<Task>): Promise<Task> => {
   const response = await fetch(`${API_URL}/tasks/${id}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(taskData),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Erro ao atualizar tarefa:", errorText);
-    throw new Error('Erro ao atualizar tarefa no servidor.');
-  }
+  if (!response.ok) throw new Error('Erro ao atualizar tarefa.');
   const data = await response.json();
   return parseTaskDates(data);
 };
 
-// DELETE /api/tasks/{id}
 export const deleteTask = async (id: string): Promise<void> => {
-  const response = await fetch(`${API_URL}/tasks/${id}`, {
-    method: 'DELETE',
-  });
+  const response = await fetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erro ao deletar tarefa.');
+};
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Erro ao deletar tarefa:", errorText);
-    throw new Error('Erro ao deletar tarefa no servidor.');
-  }
+// --- CONQUISTAS (GAMIFICAÇÃO) ---
+export const getUserAchievements = async (userId: string): Promise<Achievement[]> => {
+  // No protótipo, o usuário Admin tem ID 1 no banco
+  const targetId = userId === '1' ? '1' : userId; 
+  const response = await fetch(`${API_URL}/conquistas/user/${targetId}`);
+  if (!response.ok) return []; // Retorna vazio se der erro ou não tiver conquistas
+  return response.json();
 };

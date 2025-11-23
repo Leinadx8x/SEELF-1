@@ -1,3 +1,4 @@
+// src/pages/Dashboard.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Spinner } from "@heroui/react";
 import { Dashboard as DashboardComponent } from '../components/Dashboard';
@@ -16,7 +17,14 @@ const initialFormState = {
 };
 
 export const Dashboard: React.FC = () => {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  // Inicializa com valores zerados para evitar erro de "null" na renderização
+  const [stats, setStats] = useState<DashboardStats>({
+    totalProducts: 0,
+    lowStockProducts: 0,
+    outOfStockProducts: 0,
+    totalMovementsToday: 0,
+    valorTotalMercadoriasEstoque: 0
+  });
   const [alerts, setAlerts] = useState<StockAlert[]>([]);
   const [recentMovements, setRecentMovements] = useState<StockMovement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -40,58 +48,84 @@ export const Dashboard: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
+      // Busca dados em paralelo
       const [productsData, movementsData] = await Promise.all([ getProducts(), getMovements() ]);
 
-      // Chaves do mapa como string para evitar mismatch (number vs string)
-      const productMap = new Map<string, Product>(
-        productsData.map((p: Product) => [String(p.id), p])
-      );
+      // 1. Cria um Mapa de Produtos para busca rápida (ID -> Produto)
+      // Isso garante que a gente consiga achar o nome do produto mesmo se a movimentação trouxer só o ID
+      const productMap = new Map<string, Product>();
+      productsData.forEach((p: Product) => {
+        if (p && p.id) productMap.set(String(p.id), p);
+      });
 
-      // Enriquecer cada movimentação com nome/sku do produto
+      // 2. Enriquece as Movimentações com os dados do Produto (Nome e SKU)
+      // Isso resolve o problema de "Nome sumindo"
       const movementsEnriched = movementsData.map((m: any) => {
+        // Tenta achar o ID do produto de várias formas possíveis que a API pode mandar
         const pid = m?.product?.id ?? m?.productId ?? m?.product_id;
-        const prod = pid != null ? productMap.get(String(pid)) : undefined;
+        const productFromMap = pid != null ? productMap.get(String(pid)) : undefined;
+
+        // Prioriza o objeto produto completo, senão usa o do mapa
+        const finalProduct = m.product && m.product.name ? m.product : productFromMap;
 
         return {
           ...m,
-          productName: m?.product?.name ?? m?.productName ?? prod?.name ?? '—',
-          productSku: m?.product?.sku ?? m?.productSku ?? prod?.sku ?? '',
+          // Garante que o objeto 'product' exista dentro da movimentação para o componente filho ler
+          product: finalProduct || { name: 'Produto não encontrado', sku: '---' },
+          // Campos de fallback
+          productName: finalProduct?.name || 'Desconhecido',
+          productSku: finalProduct?.sku || '',
+          // Normaliza o tipo para garantir que DEFEITO seja processado
+          type: m.type || 'SAIDA' 
         };
       });
 
+      // Ordena por data (mais recente primeiro)
       const sortedMovements = movementsEnriched.sort(
         (a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
+      // Atualiza estados
       setProducts(productsData);
-      setRecentMovements(sortedMovements.slice(0, 5));
+      setRecentMovements(sortedMovements.slice(0, 5)); // Pega apenas as 5 últimas
 
+      // 3. Cálculos de Estatísticas (Cards Coloridos)
       const totalProducts = productsData.length;
       const lowStockProducts = productsData.filter(p => p.currentStock > 0 && p.currentStock <= p.minimumStock).length;
-      const outOfStockProducts = productsData.filter(p => p.currentStock === 0).length;
+      const outOfStockProducts = productsData.filter(p => p.currentStock <= 0).length;
+      
+      // Conta movimentações de hoje
+      const todayStr = new Date().toDateString();
       const totalMovementsToday = movementsEnriched.filter(
-        (m: any) => new Date(m.timestamp).toDateString() === new Date().toDateString()
+        (m: any) => {
+            try { return new Date(m.timestamp).toDateString() === todayStr; } 
+            catch { return false; }
+        }
       ).length;
+
       const valorTotalMercadoriasEstoque = productsData.reduce((total, p) => total + (p.price * p.currentStock), 0);
 
       setStats({ totalProducts, lowStockProducts, outOfStockProducts, totalMovementsToday, valorTotalMercadoriasEstoque });
 
+      // 4. Gera Alertas de Estoque
       const stockAlerts = productsData
-        .filter(p => p.currentStock === 0 || p.currentStock <= p.minimumStock)
+        .filter(p => p.currentStock <= 0 || p.currentStock <= p.minimumStock)
         .map((p): StockAlert => ({
-          id: p.id,
-          productId: p.id,
+          id: String(p.id),
+          productId: String(p.id),
           productName: p.name,
           productSku: p.sku,
           currentStock: p.currentStock,
           minimumStock: p.minimumStock,
-          alertType: p.currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+          alertType: p.currentStock <= 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
           createdAt: new Date()
         }));
 
       setAlerts(stockAlerts);
+
     } catch (error) {
-      console.error("Erro ao carregar dados do dashboard:", error);
+      console.error("Erro CRÍTICO ao carregar dados do dashboard:", error);
+      // Em caso de erro, mantemos os stats zerados ou com o último estado válido
     } finally {
       setIsLoading(false);
     }
@@ -123,13 +157,16 @@ export const Dashboard: React.FC = () => {
   const handleMovementSubmit = useCallback(async () => {
     setIsSubmitting(true);
     try {
-        const product = products.find(p => p.id.toString() === formData.productId);
+        const product = products.find(p => String(p.id) === String(formData.productId));
         if (!product) throw new Error("Produto não encontrado");
+
+        // Lógica correta para enviar o tipo DEFEITO
         const getBackendType = () => {
             if (formData.type === 'IN') return 'ENTRADA';
             if (formData.type === 'OUT') return 'SAIDA';
-            return 'DEFEITO';
+            return 'DEFEITO'; // Garante que DEFEITO seja enviado corretamente
         };
+
         const qty = parseInt(formData.quantity);
         const payload = {
             product: { id: product.id },
@@ -142,39 +179,33 @@ export const Dashboard: React.FC = () => {
 
         await createMovement(payload);
 
-        // Recalcula otimisticamente o estoque local e os cards
+        // Atualização Otimista (para a tela atualizar rápido)
         const adjustedProducts = products.map(p => {
-          if (p.id !== product.id) return p;
-          const delta = formData.type === 'IN' ? qty : qty; // qty já vem positivo
-          const sign = formData.type === 'IN' ? +1 : -1;    // OUT/DEFEITO decrementa
-          const newStock = Math.max(0, p.currentStock + sign * delta);
+          if (String(p.id) !== String(product.id)) return p;
+          
+          // Entrada soma, Saída e Defeito subtraem
+          const isEntry = formData.type === 'IN';
+          const delta = qty;
+          const newStock = isEntry ? p.currentStock + delta : Math.max(0, p.currentStock - delta);
+          
           return { ...p, currentStock: newStock };
         });
+        
         setProducts(adjustedProducts);
+        
+        // Recalcula stats rápidos baseados na atualização otimista
+        // (O fetchData final vai garantir a consistência real depois)
+        const outOfStock = adjustedProducts.filter(p => p.currentStock <= 0).length;
+        const lowStock = adjustedProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.minimumStock).length;
+        
+        setStats(prev => ({
+            ...prev,
+            outOfStockProducts: outOfStock,
+            lowStockProducts: lowStock,
+            totalMovementsToday: prev.totalMovementsToday + 1 // Incrementa contador
+        }));
 
-        // Recalcular stats e alertas a partir do estoque ajustado
-        const totalProducts = adjustedProducts.length;
-        const lowStockProducts = adjustedProducts.filter(p => p.currentStock > 0 && p.currentStock <= p.minimumStock).length;
-        const outOfStockProducts = adjustedProducts.filter(p => p.currentStock === 0).length;
-        const valorTotalMercadoriasEstoque = adjustedProducts.reduce((total, p) => total + (p.price * p.currentStock), 0);
-
-        setStats({ totalProducts, lowStockProducts, outOfStockProducts, totalMovementsToday: stats?.totalMovementsToday ?? 0, valorTotalMercadoriasEstoque });
-
-        const stockAlerts = adjustedProducts
-          .filter(p => p.currentStock === 0 || p.currentStock <= p.minimumStock)
-          .map((p): StockAlert => ({
-            id: p.id,
-            productId: p.id,
-            productName: p.name,
-            productSku: p.sku,
-            currentStock: p.currentStock,
-            minimumStock: p.minimumStock,
-            alertType: p.currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-            createdAt: new Date()
-          }));
-        setAlerts(stockAlerts);
-
-        // Busca final para alinhar com o backend
+        // Atualiza tudo do servidor para garantir
         await fetchData();
         closeMovementForm();
     } catch (error) {
@@ -182,9 +213,9 @@ export const Dashboard: React.FC = () => {
     } finally {
         setIsSubmitting(false);
     }
-  }, [formData, products, stats, fetchData, closeMovementForm]);
+  }, [formData, products, fetchData, closeMovementForm]);
   
-  if (isLoading || !stats) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
           <Spinner label="Carregando Dashboard..." color="primary" labelColor="primary" />

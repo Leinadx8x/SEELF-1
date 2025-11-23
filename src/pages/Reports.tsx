@@ -1,9 +1,7 @@
+// src/pages/Reports.tsx
 import React, { useState, useEffect } from 'react';
 import { Card, CardBody, CardHeader, Button, Divider, Progress, Spinner } from '@heroui/react';
-import {
-    BarChart3Icon, AlertTriangleIcon, PackageIcon,
-    DollarSignIcon, ActivityIcon, RefreshCwIcon,
-} from 'lucide-react';
+import { BarChart3Icon, AlertTriangleIcon, PackageIcon, DollarSignIcon, ActivityIcon, RefreshCwIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { getProducts, getMovements } from '../services/api';
 import { Product, StockMovement } from '../types';
@@ -20,7 +18,7 @@ export const Reports: React.FC = () => {
             setProducts(productsData);
             setMovements(movementsData);
         } catch (error) {
-            console.error("Erro ao buscar dados para relatórios:", error);
+            console.error("Erro ao buscar dados:", error);
         } finally {
             setIsLoading(false);
         }
@@ -31,18 +29,29 @@ export const Reports: React.FC = () => {
     }, []);
 
     const stockMovementData = React.useMemo(() => {
-        const monthlyData: { [key: string]: { name: string, entradas: number, saidas: number } } = {};
+        const monthlyData: { [key: string]: { name: string, entradas: number, saidas: number, defeitos: number } } = {};
         
         movements.forEach(mov => {
-            const month = new Date(mov.timestamp).toLocaleString('pt-BR', { month: 'short' });
-            if (!monthlyData[month]) {
-                monthlyData[month] = { name: month, entradas: 0, saidas: 0 };
-            }
-            
-            if (mov.type === 'ENTRADA') {
-                monthlyData[month].entradas += mov.quantity;
-            } else { 
-                monthlyData[month].saidas += mov.quantity;
+            try {
+                const date = new Date(mov.timestamp);
+                if (isNaN(date.getTime())) return; // Pula data inválida
+
+                const month = date.toLocaleString('pt-BR', { month: 'short' });
+                
+                if (!monthlyData[month]) {
+                    monthlyData[month] = { name: month, entradas: 0, saidas: 0, defeitos: 0 };
+                }
+                
+                const type = (mov.type || '').toUpperCase();
+                if (type === 'ENTRADA' || type === 'IN') {
+                    monthlyData[month].entradas += mov.quantity;
+                } else if (type === 'DEFEITO') {
+                    monthlyData[month].defeitos += mov.quantity;
+                } else { 
+                    monthlyData[month].saidas += mov.quantity;
+                }
+            } catch (e) {
+                console.warn("Erro ao processar movimentação no relatório", mov);
             }
         });
         
@@ -54,7 +63,7 @@ export const Reports: React.FC = () => {
             .filter(p => p.currentStock > 0 && p.currentStock <= p.minimumStock)
             .map(p => ({
                 ...p,
-                percentual: (p.currentStock / p.minimumStock) * 100
+                percentual: p.minimumStock > 0 ? (p.currentStock / p.minimumStock) * 100 : 0
             }));
     }, [products]);
     
@@ -64,7 +73,12 @@ export const Reports: React.FC = () => {
         return { valorTotalEstoque, produtosEmFalta };
     }, [products]);
 
-    const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    const formatCurrency = (value: number) => {
+        try {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        } catch { return 'R$ 0,00'; }
+    };
+
     const getStockStatusColor = (percentual: number) => {
         if (percentual < 30) return 'danger';
         if (percentual < 60) return 'warning';
@@ -72,11 +86,7 @@ export const Reports: React.FC = () => {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                <Spinner label="Gerando Relatórios..." color="primary" labelColor="primary" />
-            </div>
-        );
+        return <div className="flex justify-center items-center h-screen"><Spinner label="Carregando..." color="primary" /></div>;
     }
 
     return (
@@ -86,7 +96,7 @@ export const Reports: React.FC = () => {
                     <h1 className="text-3xl font-bold">Relatórios</h1>
                     <p className="text-default-500 mt-1">Análises e insights do seu estoque</p>
                 </div>
-                <Button color="secondary" variant="flat" startContent={<RefreshCwIcon size={16} />} onPress={fetchData} isLoading={isLoading}>
+                <Button color="secondary" variant="flat" startContent={<RefreshCwIcon size={16} />} onPress={fetchData}>
                     Atualizar
                 </Button>
             </div>
@@ -137,6 +147,7 @@ export const Reports: React.FC = () => {
                                     <Legend />
                                     <Line type="monotone" dataKey="entradas" name="Entradas" stroke="#10B981" strokeWidth={2} />
                                     <Line type="monotone" dataKey="saidas" name="Saídas" stroke="#EF4444" strokeWidth={2} />
+                                    <Line type="monotone" dataKey="defeitos" name="Defeitos" stroke="#F59E0B" strokeWidth={2} strokeDasharray="5 5" />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
@@ -154,13 +165,7 @@ export const Reports: React.FC = () => {
                                         <p className="font-medium truncate pr-4">{item.name}</p>
                                         <p>{item.currentStock} / {item.minimumStock}</p>
                                     </div>
-                                    <Progress
-                                        aria-label="Nível de estoque"
-                                        size="sm"
-                                        value={item.percentual}
-                                        color={getStockStatusColor(item.percentual)}
-                                        className="mt-1"
-                                    />
+                                    <Progress size="sm" value={item.percentual} color={getStockStatusColor(item.percentual)} className="mt-1" />
                                 </div>
                             )) : <p className="text-default-500 text-center py-10">Nenhum produto com estoque baixo!</p>}
                         </div>

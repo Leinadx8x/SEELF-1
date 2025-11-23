@@ -1,210 +1,156 @@
-// pages/Profile.tsx
-import React from 'react';
+// src/pages/Profile.tsx
+import React, { useEffect, useState } from 'react';
 import {
-    Card,
-    CardBody,
-    CardHeader,
-    Button,
-    Input,
-    Divider,
-    Chip,
-    Avatar,
-    Progress,
-    Listbox,
-    ListboxItem
+    Card, CardBody, CardHeader, Button, Input, Divider, Chip, Avatar, Progress, Listbox, ListboxItem, Spinner
 } from '@heroui/react';
 import {
-    UserIcon,
-    MailIcon,
-    ShieldCheckIcon,
-    TrophyIcon,
-    HistoryIcon,
-    Edit3Icon,
-    TrendingUpIcon,
-    TrendingDownIcon,
-    SaveIcon,
-    CameraIcon,
+    UserIcon, MailIcon, ShieldCheckIcon, TrophyIcon, HistoryIcon,
+    TrendingUpIcon, CameraIcon, BoxIcon, CheckCircleIcon, StarIcon
 } from 'lucide-react';
-
-// Mock Data - Substituir pelo hook useAuth() ou dados da API
-const currentUser = {
-    name: 'Diogo Maggio',
-    email: 'diogo.maggio@seelf.com',
-    role: 'ADMIN',
-    avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
-    memberSince: new Date('2024-01-15T09:00:00Z'),
-};
-
-const userStats = {
-    xp: 1250,
-    xpNextLevel: 2000,
-    level: 5,
-    achievements: 8,
-    rank: 2,
-};
-
-const recentActivity = [
-    { id: 1, action: 'Registrou entrada de 15x CAL-002', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), icon: TrendingUpIcon, color: 'success' },
-    { id: 2, action: 'Atualizou o produto "Tênis Casual Branco"', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5), icon: Edit3Icon, color: 'warning' },
-    { id: 3, action: 'Registrou saída de 3x CAM-001', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), icon: TrendingDownIcon, color: 'danger' },
-    { id: 4, action: 'Completou a tarefa "Contagem Semanal"', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), icon: TrophyIcon, color: 'secondary' },
-];
+import { useAuth } from '../contexts/AuthContext';
+import { getUserAchievements } from '../services/api';
+import { Achievement } from '../types';
 
 export const Profile: React.FC = () => {
+    const { user } = useAuth(); // Pega o usuário logado (Admin ID 1)
+    const [achievements, setAchievements] = useState<Achievement[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const formatDate = (date: Date) => {
-        return new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-        }).format(date);
-    };
+    useEffect(() => {
+        const fetchAchievements = async () => {
+            if (user?.id) {
+                try {
+                    // Busca conquistas reais do Backend
+                    const data = await getUserAchievements(user.id);
+                    setAchievements(data);
+                } catch (error) {
+                    console.error("Erro ao buscar conquistas", error);
+                } finally {
+                    setLoading(false);
+                }
+            }
+        };
+        fetchAchievements();
+    }, [user]);
 
-    const formatRelativeTime = (date: Date) => {
-        const now = new Date();
-        const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-        
-        if (diffInMinutes < 60) {
-            return `${diffInMinutes} min atrás`;
-        } else if (diffInMinutes < 1440) {
-            return `${Math.floor(diffInMinutes / 60)}h atrás`;
-        } else {
-            return `${Math.floor(diffInMinutes / 1440)}d atrás`;
+    // Mapeia o nome do ícone vindo do banco para um componente Lucide
+    const getIconComponent = (iconName: string) => {
+        switch (iconName) {
+            case 'box': return <BoxIcon size={24} className="text-white" />;
+            case 'check-circle': return <CheckCircleIcon size={24} className="text-white" />;
+            default: return <StarIcon size={24} className="text-white" />;
         }
     };
 
+    const formatDate = (date: string | Date) => {
+        return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(date));
+    };
+
+    if (!user) return null;
+
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div>
                 <h1 className="text-3xl font-bold text-foreground">Meu Perfil</h1>
-                <p className="text-default-500 mt-1">
-                    Visualize e gerencie suas informações pessoais e performance.
-                </p>
+                <p className="text-default-500 mt-1">Visualize sua jornada e conquistas.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Coluna de Perfil e Informações */}
+                {/* Coluna de Perfil */}
                 <div className="lg:col-span-1 space-y-6">
                     <Card>
                         <CardBody className="items-center text-center p-6">
                             <div className="relative">
-                                <Avatar src={currentUser.avatar} className="w-24 h-24 text-large" />
+                                <Avatar name={user.name} className="w-24 h-24 text-large" color="primary" />
                                 <Button isIconOnly color="default" variant="flat" size="sm" className="absolute bottom-0 right-0">
                                     <CameraIcon size={16} />
                                 </Button>
                             </div>
-                            <h2 className="text-xl font-semibold mt-4">{currentUser.name}</h2>
-                            <p className="text-default-500">{currentUser.email}</p>
+                            <h2 className="text-xl font-semibold mt-4">{user.name}</h2>
+                            <p className="text-default-500">{user.email}</p>
                             <Chip 
-                                color={currentUser.role === 'ADMIN' ? 'primary' : 'secondary'} 
+                                color={user.role === 'ADMIN' ? 'primary' : 'secondary'} 
                                 variant="flat" 
                                 size="sm" 
                                 className="mt-2"
                                 startContent={<ShieldCheckIcon size={14} />}
                             >
-                                {currentUser.role === 'ADMIN' ? 'Administrador' : 'Funcionário'}
+                                {user.role === 'ADMIN' ? 'Administrador' : 'Funcionário'}
                             </Chip>
-                            <Divider className="my-4" />
-                            <div className="text-sm text-default-500">
-                                Membro desde {formatDate(currentUser.memberSince)}
-                            </div>
                         </CardBody>
                     </Card>
 
                     <Card>
-                        <CardHeader>
-                            <h3 className="text-lg font-semibold">Informações Pessoais</h3>
-                        </CardHeader>
+                        <CardHeader><h3 className="text-lg font-semibold">Dados da Conta</h3></CardHeader>
                         <Divider />
                         <CardBody className="space-y-4">
-                            <Input 
-                                label="Nome Completo"
-                                defaultValue={currentUser.name}
-                                startContent={<UserIcon size={16} />}
-                            />
-                            <Input
-                                isReadOnly
-                                label="Email"
-                                defaultValue={currentUser.email}
-                                startContent={<MailIcon size={16} />}
-                                description="O email não pode ser alterado."
-                            />
-                            <Button color="primary" className="w-full" startContent={<SaveIcon size={16} />}>
-                                Salvar Alterações
-                            </Button>
+                            <Input label="Nome" value={user.name} isReadOnly startContent={<UserIcon size={16} />} />
+                            <Input label="Email" value={user.email} isReadOnly startContent={<MailIcon size={16} />} />
                         </CardBody>
                     </Card>
                 </div>
 
-                {/* Coluna de Performance e Atividade */}
+                {/* Coluna de Gamificação */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Card>
-                        <CardHeader>
-                             <div className="flex items-center gap-2">
-                                <TrophyIcon size={20} className="text-warning" />
-                                <h3 className="text-lg font-semibold">Minha Performance</h3>
-                            </div>
-                        </CardHeader>
-                        <Divider />
-                        <CardBody>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                                <div className="p-4 bg-default-50 rounded-lg">
-                                    <p className="text-sm text-default-500">Nível</p>
-                                    <p className="text-3xl font-bold text-primary">{userStats.level}</p>
+                    <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none">
+                        <CardBody className="p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className="text-2xl font-bold flex items-center gap-2">
+                                        <TrophyIcon /> Nível {Math.floor(achievements.length / 2) + 1}
+                                    </h3>
+                                    <p className="opacity-80">Continue completando tarefas para subir de nível!</p>
                                 </div>
-                                <div className="p-4 bg-default-50 rounded-lg">
-                                    <p className="text-sm text-default-500">Conquistas</p>
-                                    <p className="text-3xl font-bold">{userStats.achievements}</p>
-                                </div>
-                                 <div className="p-4 bg-default-50 rounded-lg">
-                                    <p className="text-sm text-default-500">Ranking Geral</p>
-                                    <p className="text-3xl font-bold">#{userStats.rank}</p>
+                                <div className="text-right">
+                                    <p className="text-3xl font-bold">{achievements.length}</p>
+                                    <p className="text-sm opacity-80">Conquistas</p>
                                 </div>
                             </div>
-                            <div className="mt-4">
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-sm font-medium">Pontos de Experiência (XP)</span>
-                                    <span className="text-sm text-default-500">{userStats.xp} / {userStats.xpNextLevel}</span>
-                                </div>
-                                <Progress 
-                                    aria-label="Progresso de XP" 
-                                    value={userStats.xp} 
-                                    maxValue={userStats.xpNextLevel} 
-                                    color="primary"
-                                    size="md"
-                                />
-                            </div>
+                            <Progress 
+                                value={achievements.length * 20} 
+                                className="max-w-md" 
+                                color="warning"
+                                size="sm"
+                                label="Progresso para o próximo nível"
+                            />
                         </CardBody>
                     </Card>
 
-                     <Card>
+                    <Card>
                         <CardHeader>
                             <div className="flex items-center gap-2">
-                                <HistoryIcon size={20} />
-                                <h3 className="text-lg font-semibold">Atividade Recente</h3>
+                                <TrophyIcon size={20} className="text-warning" />
+                                <h3 className="text-lg font-semibold">Minhas Conquistas</h3>
                             </div>
                         </CardHeader>
                         <Divider />
                         <CardBody>
-                            <Listbox aria-label="Atividades recentes">
-                                {recentActivity.map(activity => {
-                                    const Icon = activity.icon;
-                                    return (
-                                        <ListboxItem key={activity.id} textValue={activity.action}>
-                                            <div className="flex justify-between w-full items-center">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-${activity.color}/10`}>
-                                                        <Icon size={16} className={`text-${activity.color}`} />
-                                                    </div>
-                                                    <span className="text-sm">{activity.action}</span>
-                                                </div>
-                                                <span className="text-xs text-default-500">{formatRelativeTime(activity.timestamp)}</span>
+                            {loading ? (
+                                <div className="flex justify-center p-4"><Spinner /></div>
+                            ) : achievements.length === 0 ? (
+                                <div className="text-center p-8 text-default-500">
+                                    <TrophyIcon size={48} className="mx-auto mb-2 opacity-20" />
+                                    <p>Você ainda não possui conquistas.</p>
+                                    <p className="text-sm">Complete tarefas ou cadastre produtos para ganhar!</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {achievements.map((ach) => (
+                                        <div key={ach.id} className="flex items-center gap-4 p-4 bg-default-50 rounded-xl border border-default-100">
+                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-lg">
+                                                {getIconComponent(ach.icone)}
                                             </div>
-                                        </ListboxItem>
-                                    );
-                                })}
-                            </Listbox>
+                                            <div>
+                                                <h4 className="font-bold text-default-900">{ach.titulo}</h4>
+                                                <p className="text-xs text-default-500">{ach.descricao}</p>
+                                                <p className="text-[10px] text-default-400 mt-1 uppercase tracking-wider">
+                                                    Desbloqueado em: {formatDate(ach.dataConquista)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </CardBody>
                     </Card>
                 </div>
